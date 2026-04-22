@@ -3,52 +3,235 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Baseball App</title>
+<title>Baseball Pro App</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body { background:#111; color:#fff; }
-.bottom-nav {
- position:fixed; bottom:0; width:100%; display:flex;
- background:#000; justify-content:space-around;
+body { background:#0b0f1a; color:#fff; font-family:sans-serif; }
+
+.header { padding:10px; text-align:center; font-weight:bold; font-size:20px; }
+
+.card {
+ background:linear-gradient(145deg,#1a2238,#111827);
+ border:none;
+ border-radius:15px;
+ padding:15px;
+ margin-bottom:10px;
 }
-.bottom-nav button { flex:1; color:#fff; background:none; border:none; }
-.active { color:#0d6efd; }
+
+.glow {
+ color:#00ffcc;
+ text-shadow:0 0 10px #00ffcc;
+}
+
+.bottom-nav {
+ position:fixed;
+ bottom:0;
+ width:100%;
+ display:flex;
+ background:#000;
+}
+.bottom-nav button {
+ flex:1;
+ padding:10px;
+ color:#aaa;
+ background:none;
+ border:none;
+}
+.bottom-nav button.active {
+ color:#0d6efd;
+}
+
+.fab {
+ position:fixed;
+ bottom:70px;
+ right:20px;
+ width:60px;
+ height:60px;
+ border-radius:50%;
+ background:#0d6efd;
+ color:white;
+ font-size:30px;
+ border:none;
+}
+
 </style>
 </head>
 
 <body>
 
-<h2 class="text-center mt-3">⚾ Baseball App</h2>
+<div class="header">⚾ Baseball Pro</div>
 
-<div id="summary" class="content">通算</div>
-<div id="batting" class="content" style="display:none;">打撃</div>
-<div id="settings" class="content" style="display:none;">
-<button onclick="addPlayer()">選手追加</button>
+<div class="container">
+
+<!-- summary -->
+<div id="summary">
+<select id="playerSelect" class="form-select mb-2" onchange="renderChart()"></select>
+
+<canvas id="chart"></canvas>
+
+<div id="stats"></div>
 </div>
 
+<!-- settings -->
+<div id="settings" style="display:none;">
+<button class="btn btn-primary w-100" onclick="addPlayer()">選手追加</button>
+<div id="playerList"></div>
+</div>
+
+</div>
+
+<button class="fab" onclick="addRecord()">＋</button>
+
 <div class="bottom-nav">
-<button onclick="tab('summary')">通算</button>
-<button onclick="tab('batting')">打撃</button>
+<button onclick="tab('summary')" class="active">通算</button>
 <button onclick="tab('settings')">設定</button>
 </div>
 
 <script>
-let state={players:[]};
+
+let state={
+ players:[],
+ records:[]
+};
+
+function save(){ localStorage.setItem("bb",JSON.stringify(state)); }
+function load(){ const d=localStorage.getItem("bb"); if(d) state=JSON.parse(d); }
 
 function tab(id){
- document.querySelectorAll('.content').forEach(c=>c.style.display='none');
- document.getElementById(id).style.display='block';
+ document.getElementById("summary").style.display="none";
+ document.getElementById("settings").style.display="none";
+ document.getElementById(id).style.display="block";
 }
 
 function addPlayer(){
  const name=prompt("名前");
  if(!name)return;
- state.players.push(name);
- alert("追加完了");
+ state.players.push({id:Date.now(),name});
+ save();
+ renderPlayers();
+ updateSelect();
 }
+
+function renderPlayers(){
+ const list=document.getElementById("playerList");
+ list.innerHTML="";
+ state.players.forEach(p=>{
+  list.innerHTML+=`<div class="card">${p.name}</div>`;
+ });
+}
+
+function updateSelect(){
+ const sel=document.getElementById("playerSelect");
+ sel.innerHTML="";
+ state.players.forEach(p=>{
+  sel.innerHTML+=`<option value="${p.id}">${p.name}</option>`;
+ });
+}
+
+function addRecord(){
+ if(state.players.length===0){alert("先に選手作って");return;}
+ const playerId=document.getElementById("playerSelect").value;
+
+ const ab=parseInt(prompt("打数"))||0;
+ const h=parseInt(prompt("安打"))||0;
+ const bb=parseInt(prompt("四球"))||0;
+ const hr=parseInt(prompt("本塁打"))||0;
+
+ state.records.push({
+  playerId,
+  date:new Date().toISOString().split("T")[0],
+  ab,h,bb,hr
+ });
+
+ save();
+ renderChart();
+}
+
+function calcStats(records){
+ let ab=0,h=0,bb=0,hr=0;
+
+ records.forEach(r=>{
+  ab+=r.ab;
+  h+=r.h;
+  bb+=r.bb;
+  hr+=r.hr;
+ });
+
+ const avg=ab? (h/ab):0;
+ const obp=(ab+bb)? (h+bb)/(ab+bb):0;
+ const slg=ab? ((h+hr*3)/ab):0;
+ const ops=obp+slg;
+
+ return {avg,obp,slg,ops};
+}
+
+let chart;
+
+function renderChart(){
+ const playerId=document.getElementById("playerSelect").value;
+ const data=state.records.filter(r=>r.playerId==playerId);
+
+ if(data.length===0)return;
+
+ const labels=[];
+ const avgData=[];
+ const opsData=[];
+ const obpData=[];
+
+ let temp=[];
+
+ data.forEach(r=>{
+  temp.push(r);
+  const s=calcStats(temp);
+
+  labels.push(r.date);
+  avgData.push(s.avg);
+  opsData.push(s.ops);
+  obpData.push(s.obp);
+ });
+
+ if(chart) chart.destroy();
+
+ chart=new Chart(document.getElementById("chart"),{
+  type:"line",
+  data:{
+   labels,
+   datasets:[
+    {label:"打率",data:avgData},
+    {label:"OPS",data:opsData},
+    {label:"出塁率",data:obpData}
+   ]
+  }
+ });
+
+ renderStats(data);
+}
+
+function renderStats(data){
+ const s=calcStats(data);
+
+ const avgClass=s.avg>=0.3?"glow":"";
+
+ document.getElementById("stats").innerHTML=`
+ <div class="card">
+  <div class="${avgClass}">打率: ${s.avg.toFixed(3)}</div>
+  <div>出塁率: ${s.obp.toFixed(3)}</div>
+  <div>長打率: ${s.slg.toFixed(3)}</div>
+  <div>OPS: ${s.ops.toFixed(3)}</div>
+ </div>
+ `;
+}
+
+window.onload=()=>{
+ load();
+ renderPlayers();
+ updateSelect();
+ renderChart();
+};
+
 </script>
 
 </body>
