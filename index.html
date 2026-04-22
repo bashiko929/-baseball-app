@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baseball Pro - Edit History</title>
+    <title>Baseball Pro - Cloud Edition</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -32,6 +32,16 @@
             background: rgba(0, 0, 0, 0.4);
             border-bottom: 2px solid #1e293b;
             margin-bottom: 20px;
+            position: relative;
+        }
+
+        .sync-status {
+            position: absolute;
+            top: 5px;
+            right: 15px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .card {
@@ -114,7 +124,6 @@
             margin-bottom: 10px;
         }
 
-        /* History Table */
         .history-item {
             background: rgba(255, 255, 255, 0.03);
             border-radius: 12px;
@@ -143,12 +152,31 @@
         }
 
         .hidden-input { display: none; }
+        
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-dark);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
     </style>
 </head>
 
 <body>
 
-<div class="header">⚾ Baseball Pro</div>
+<div id="loading-overlay">
+    <div class="spinner-border text-primary mb-3" role="status"></div>
+    <div class="label-text">クラウドに接続中...</div>
+</div>
+
+<div class="header">
+    ⚾ Baseball Pro
+    <span id="sync-indicator" class="sync-status text-muted">Offline</span>
+</div>
 
 <div class="container">
     <!-- Summary View -->
@@ -178,14 +206,11 @@
         <div id="playerList"></div>
 
         <div class="card mt-4">
-            <h6 class="label-text mb-3">バックアップ管理</h6>
+            <h6 class="label-text mb-3">クラウド同期情報</h6>
+            <div id="cloud-info" class="small text-muted mb-3">サインインしています</div>
             <div class="row g-2">
-                <div class="col-6">
-                    <button class="btn btn-light btn-sm w-100 py-2" onclick="exportData()">📤 書き出し</button>
-                </div>
-                <div class="col-6">
-                    <button class="btn btn-light btn-sm w-100 py-2" onclick="document.getElementById('importFile').click()">📥 復元</button>
-                    <input type="file" id="importFile" class="hidden-input" accept=".json" onchange="importData(event)">
+                <div class="col-12">
+                    <button class="btn btn-light btn-sm w-100 py-2" onclick="exportData()">📤 JSONで書き出し</button>
                 </div>
             </div>
         </div>
@@ -269,68 +294,105 @@
     </div>
 </div>
 
-<script>
+<!-- Firebase SDKs -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Firebase Initialization ---
+    const firebaseConfig = JSON.parse(__firebase_config);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'baseball-pro-v3';
+
+    let currentUser = null;
     let state = { players: [], records: [] };
     let chartInstance = null;
     const recordModal = new bootstrap.Modal(document.getElementById('recordModal'));
 
-    const save = () => localStorage.setItem("baseball_pro_data_v3", JSON.stringify(state));
-    const load = () => {
-        const data = localStorage.getItem("baseball_pro_data_v3");
-        if (data) state = JSON.parse(data);
+    // --- State Management with Cloud Sync ---
+    const updateSyncIndicator = (status) => {
+        const el = document.getElementById('sync-indicator');
+        if (status === 'syncing') {
+            el.innerText = 'Syncing...';
+            el.className = 'sync-status text-warning';
+        } else if (status === 'synced') {
+            el.innerText = 'Cloud Synced';
+            el.className = 'sync-status text-success';
+        } else {
+            el.innerText = 'Error';
+            el.className = 'sync-status text-danger';
+        }
     };
 
-    // --- Backup ---
-    function exportData() {
-        const dataStr = JSON.stringify(state, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-        const name = 'baseball_backup_' + new Date().toISOString().split('T')[0] + '.json';
-        const link = document.createElement('a');
-        link.setAttribute('href', dataUri); link.setAttribute('download', name); link.click();
-    }
-
-    function importData(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                if (data.players && confirm("データを上書きしますか？")) {
-                    state = data; save(); location.reload();
-                }
-            } catch (err) { alert("無効なファイルです"); }
-        };
-        reader.readAsText(file);
-    }
-
-    // --- Record Logic ---
-    function openRecordModal(recordId = null) {
-        const title = document.getElementById('recordModalTitle');
-        const idInput = document.getElementById('edit-record-id');
-        const deleteContainer = document.getElementById('edit-delete-container');
-        
-        if (recordId) {
-            const r = state.records.find(rec => rec.id === recordId);
-            title.innerText = "記録の編集";
-            idInput.value = r.id;
-            document.getElementById('input-date').value = r.date;
-            document.getElementById('input-ab').value = r.ab;
-            document.getElementById('input-h').value = r.h;
-            document.getElementById('input-bb').value = r.bb;
-            document.getElementById('input-hr').value = r.hr;
-            deleteContainer.style.display = 'block';
-        } else {
-            title.innerText = "成績の入力";
-            idInput.value = "";
-            document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
-            ['input-ab', 'input-h', 'input-bb', 'input-hr'].forEach(id => document.getElementById(id).value = 0);
-            deleteContainer.style.display = 'none';
+    // --- Auth Initialization ---
+    const initApp = async () => {
+        try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        } catch (error) {
+            console.error("Auth error:", error);
+            updateSyncIndicator('error');
         }
-        recordModal.show();
-    }
+    };
 
-    function handleSaveRecord() {
+    onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        if (user) {
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('cloud-info').innerText = `ユーザーID: ${user.uid}`;
+            setupListeners(user.uid);
+        }
+    });
+
+    // --- Data Listeners ---
+    const setupListeners = (userId) => {
+        const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'data', 'main');
+        
+        onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                state = docSnap.data();
+            } else {
+                state = { players: [], records: [] };
+            }
+            updatePlayerUI();
+            renderDisplay();
+            updateSyncIndicator('synced');
+        }, (error) => {
+            console.error("Firestore error:", error);
+            updateSyncIndicator('error');
+        });
+    };
+
+    const persistToCloud = async () => {
+        if (!currentUser) return;
+        updateSyncIndicator('syncing');
+        try {
+            const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'data', 'main');
+            await setDoc(userDocRef, state);
+            updateSyncIndicator('synced');
+        } catch (error) {
+            console.error("Cloud save failed:", error);
+            updateSyncIndicator('error');
+        }
+    };
+
+    // --- Original Logic Adapted for Cloud ---
+    window.handleNewPlayer = () => {
+        const input = document.getElementById('newPlayerName');
+        if (!input.value.trim()) return;
+        state.players.push({ id: Date.now().toString(), name: input.value.trim() });
+        persistToCloud();
+        input.value = '';
+        bootstrap.Modal.getInstance(document.getElementById('playerModal')).hide();
+    };
+
+    window.handleSaveRecord = () => {
         const playerId = document.getElementById('playerSelect').value;
         if (!playerId) return alert("選手を登録してください");
 
@@ -352,41 +414,37 @@
             state.records.push(data);
         }
         
-        save();
+        persistToCloud();
         recordModal.hide();
-        renderDisplay();
-    }
+    };
 
-    function deleteRecord() {
+    window.deleteRecord = () => {
         const id = document.getElementById('edit-record-id').value;
         if (confirm("この記録を削除しますか？")) {
             state.records = state.records.filter(r => r.id !== id);
-            save();
+            persistToCloud();
             recordModal.hide();
-            renderDisplay();
         }
-    }
+    };
 
-    function handleNewPlayer() {
-        const input = document.getElementById('newPlayerName');
-        if (!input.value.trim()) return;
-        state.players.push({ id: Date.now().toString(), name: input.value.trim() });
-        save();
-        updatePlayerUI();
-        input.value = '';
-        bootstrap.Modal.getInstance(document.getElementById('playerModal')).hide();
-        renderDisplay();
-    }
-
-    function clearAllData() {
+    window.clearAllData = async () => {
         if (confirm("全データを削除します。よろしいですか？")) {
             state = { players: [], records: [] };
-            save(); location.reload();
+            await persistToCloud();
+            location.reload();
         }
-    }
+    };
 
-    // --- UI Rendering ---
-    function updatePlayerUI() {
+    window.exportData = () => {
+        const dataStr = JSON.stringify(state, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const name = 'baseball_backup_' + new Date().toISOString().split('T')[0] + '.json';
+        const link = document.createElement('a');
+        link.setAttribute('href', dataUri); link.setAttribute('download', name); link.click();
+    };
+
+    // --- UI Methods ---
+    window.updatePlayerUI = () => {
         const select = document.getElementById('playerSelect');
         const list = document.getElementById('playerList');
         const current = select.value;
@@ -395,14 +453,13 @@
         list.innerHTML = state.players.map(p => `
             <div class="history-item">
                 <span class="fw-bold">${p.name}</span>
-                <span class="badge bg-primary">登録済</span>
+                <span class="badge bg-primary">クラウド同期中</span>
             </div>
         `).join('');
-    }
+    };
 
-    function renderDisplay() {
+    window.renderDisplay = () => {
         const playerId = document.getElementById('playerSelect').value;
-        // 日付順にソートして計算
         const pRecords = state.records
             .filter(r => r.playerId === playerId)
             .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -420,11 +477,10 @@
         renderChart(timeline);
         renderStats(t);
         renderHistory(pRecords);
-    }
+    };
 
-    function renderHistory(records) {
+    const renderHistory = (records) => {
         const container = document.getElementById('history-list');
-        // 表示は新しい順
         const sorted = [...records].reverse();
         container.innerHTML = sorted.map(r => `
             <div class="history-item">
@@ -435,9 +491,9 @@
                 <button class="btn btn-sm btn-outline-primary" onclick="openRecordModal('${r.id}')">編集</button>
             </div>
         `).join('') || '<p class="text-center text-muted small py-3">履歴がありません</p>';
-    }
+    };
 
-    function renderChart(data) {
+    const renderChart = (data) => {
         const ctx = document.getElementById('chart').getContext('2d');
         if (chartInstance) chartInstance.destroy();
         if (!data.length) return;
@@ -460,9 +516,9 @@
                 }
             }
         });
-    }
+    };
 
-    function renderStats(t) {
+    const renderStats = (t) => {
         const avg = t.ab ? (t.h / t.ab) : 0;
         const obp = (t.ab + t.bb) ? (t.h + t.bb) / (t.ab + t.bb) : 0;
         const slg = t.ab ? ((t.h + t.hr * 3) / t.ab) : 0;
@@ -496,7 +552,32 @@
                 </div>
             </div>
         `;
-    }
+    };
+
+    window.openRecordModal = (recordId = null) => {
+        const title = document.getElementById('recordModalTitle');
+        const idInput = document.getElementById('edit-record-id');
+        const deleteContainer = document.getElementById('edit-delete-container');
+        
+        if (recordId) {
+            const r = state.records.find(rec => rec.id === recordId);
+            title.innerText = "記録の編集";
+            idInput.value = r.id;
+            document.getElementById('input-date').value = r.date;
+            document.getElementById('input-ab').value = r.ab;
+            document.getElementById('input-h').value = r.h;
+            document.getElementById('input-bb').value = r.bb;
+            document.getElementById('input-hr').value = r.hr;
+            deleteContainer.style.display = 'block';
+        } else {
+            title.innerText = "成績の入力";
+            idInput.value = "";
+            document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+            ['input-ab', 'input-h', 'input-bb', 'input-hr'].forEach(id => document.getElementById(id).value = 0);
+            deleteContainer.style.display = 'none';
+        }
+        recordModal.show();
+    };
 
     window.switchTab = (id) => {
         document.getElementById('view-summary').style.display = id === 'summary' ? 'block' : 'none';
@@ -505,7 +586,8 @@
         document.getElementById('btn-settings').classList.toggle('active', id === 'settings');
     };
 
-    window.onload = () => { load(); updatePlayerUI(); renderDisplay(); };
+    // Start app
+    initApp();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
