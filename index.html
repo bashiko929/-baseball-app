@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baseball App</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    margin:0;
+    font-family:sans-serif;
+    background:#0d1117;
+    color:white;
+}
+.container { padding:15px; }
+
+select, button {
+    width:100%;
+    margin:8px 0;
+    padding:12px;
+    font-size:16px;
+    border-radius:10px;
+    border:none;
+}
+
+button { background:#0d6efd; color:white; }
+
+canvas {
+    background:#161b22;
+    border-radius:12px;
+    padding:10px;
+}
+
+.glow {
+    color: gold;
+    text-shadow:0 0 10px gold;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>📊 成績分析</h2>
+
+<select id="playerFilter"></select>
+
+<button onclick="addSample()">サンプル追加</button>
+
+<canvas id="chart" height="200"></canvas>
+
+<div id="avgDisplay"></div>
+
+</div>
+
+<script>
+let state = {
+    players: [],
+    battingRecords: []
+};
+
+const KEY = "baseball_app_v1";
+let chart;
+
+// --- 保存 ---
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+function load(){
+    const d = localStorage.getItem(KEY);
+    if(d) state = JSON.parse(d);
+}
+
+// --- 初期化 ---
+function init(){
+    load();
+
+    if(state.players.length===0){
+        state.players.push({id:"1", name:"自分"});
+    }
+
+    updateSelect();
+    drawChart();
+}
+
+// --- セレクト ---
+function updateSelect(){
+    const s = document.getElementById("playerFilter");
+    s.innerHTML="";
+    state.players.forEach(p=>{
+        s.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+    });
+}
+
+// --- データ追加（テスト用） ---
+function addSample(){
+    const id = document.getElementById("playerFilter").value;
+
+    state.battingRecords.push({
+        playerId:id,
+        date:new Date().toISOString().split("T")[0],
+        atBats:4,
+        hits:Math.floor(Math.random()*4),
+        walks:1,
+        homeRuns:Math.random()>0.7?1:0
+    });
+
+    save();
+    drawChart();
+}
+
+// --- グラフ ---
+function drawChart(){
+
+    const id = document.getElementById("playerFilter").value;
+
+    const records = state.battingRecords
+        .filter(r=>r.playerId===id)
+        .sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+    let ab=0,h=0,bb=0,tb=0;
+
+    let labels=[], avg=[], obp=[], ops=[];
+
+    records.forEach(r=>{
+        ab+=r.atBats;
+        h+=r.hits;
+        bb+=r.walks;
+        tb+=(r.hits+r.homeRuns);
+
+        let a = ab>0 ? h/ab : 0;
+        let o = (ab+bb)>0 ? (h+bb)/(ab+bb) : 0;
+        let s = ab>0 ? tb/ab : 0;
+        let op = o+s;
+
+        labels.push(r.date);
+        avg.push(a);
+        obp.push(o);
+        ops.push(op);
+    });
+
+    if(chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type:"line",
+        data:{
+            labels:labels,
+            datasets:[
+                {label:"AVG", data:avg, borderColor:"#0d6efd"},
+                {label:"OBP", data:obp, borderColor:"#20c997"},
+                {label:"OPS", data:ops, borderColor:"#ffc107"}
+            ]
+        }
+    });
+
+    // 表示
+    const last = avg[avg.length-1] || 0;
+    document.getElementById("avgDisplay").innerHTML =
+        `<h3 class="${last>=0.3?'glow':''}">打率 ${last.toFixed(3)}</h3>`;
+}
+
+// --- SW登録 ---
+if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js');
+}
+
+document.getElementById("playerFilter").onchange = drawChart;
+
+init();
+</script>
+
+</body>
+</html>
