@@ -1,24 +1,149 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Baseball Pro 完成版</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baseball Pro - Edit History</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0b0f1a;
+            --card-bg: linear-gradient(145deg, #1e293b, #0f172a);
+            --accent: #00ffcc;
+            --primary: #3b82f6;
+            --text-main: #ffffff;
+            --text-muted: #94a3b8;
+        }
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, sans-serif;
+            margin-bottom: 90px;
+            font-size: 18px;
+        }
 
-<style>
-body { background:#0b0f1a; color:#fff; font-family:sans-serif; margin-bottom:90px;}
-.header {text-align:center;padding:20px;font-size:22px;font-weight:bold;}
-.card {background:#111827;border-radius:15px;padding:15px;margin-bottom:15px;}
-.bottom-nav{position:fixed;bottom:0;width:100%;display:flex;background:#000;}
-.bottom-nav button{flex:1;color:#888;background:none;border:none;padding:10px;}
-.bottom-nav button.active{color:#3b82f6;}
-.fab{position:fixed;bottom:80px;right:20px;width:60px;height:60px;border-radius:50%;background:#3b82f6;color:#fff;font-size:28px;border:none;}
-.history-item{background:#1f2937;padding:10px;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;}
-.glow{color:#00ffcc;text-shadow:0 0 10px #00ffcc;}
-</style>
+        .header {
+            padding: 20px;
+            text-align: center;
+            font-weight: 800;
+            font-size: 24px;
+            background: rgba(0, 0, 0, 0.4);
+            border-bottom: 2px solid #1e293b;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .label-text {
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .glow {
+            color: var(--accent);
+            text-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            background: #000;
+            border-top: 2px solid #1e293b;
+            z-index: 1000;
+            height: 75px;
+        }
+
+        .bottom-nav button {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .bottom-nav button.active {
+            color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .fab {
+            position: fixed;
+            bottom: 95px;
+            right: 25px;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 36px;
+            border: none;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.5);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #chart-container {
+            position: relative;
+            height: 250px;
+            margin-bottom: 10px;
+        }
+
+        /* History Table */
+        .history-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 12px 15px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+        }
+
+        .form-control, .form-select {
+            background: #0f172a !important;
+            border: 2px solid #334155 !important;
+            color: white !important;
+            font-size: 18px;
+            border-radius: 12px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border: none;
+            height: 55px;
+            font-weight: 700;
+            border-radius: 12px;
+        }
+
+        .hidden-input { display: none; }
+    </style>
 </head>
 
 <body>
@@ -26,226 +151,363 @@ body { background:#0b0f1a; color:#fff; font-family:sans-serif; margin-bottom:90p
 <div class="header">⚾ Baseball Pro</div>
 
 <div class="container">
+    <!-- Summary View -->
+    <div id="view-summary">
+        <div class="card p-3">
+            <div class="label-text">選手選択</div>
+            <select id="playerSelect" class="form-select" onchange="renderDisplay()"></select>
+        </div>
 
-<select id="playerSelect" class="form-select mb-3" onchange="renderDisplay()"></select>
+        <div class="card">
+            <div id="chart-container">
+                <canvas id="chart"></canvas>
+            </div>
+        </div>
 
-<div class="card">
-<canvas id="chart"></canvas>
+        <div id="stats-container"></div>
+
+        <h6 class="label-text mt-4 mb-3">成績履歴（修正・削除可能）</h6>
+        <div id="history-list"></div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="view-settings" style="display:none;">
+        <button class="btn btn-outline-primary w-100 mb-4" data-bs-toggle="modal" data-bs-target="#playerModal" style="border-width: 2px;">＋ 新しい選手を登録</button>
+        
+        <h6 class="label-text mb-3">登録済み選手</h6>
+        <div id="playerList"></div>
+
+        <div class="card mt-4">
+            <h6 class="label-text mb-3">バックアップ管理</h6>
+            <div class="row g-2">
+                <div class="col-6">
+                    <button class="btn btn-light btn-sm w-100 py-2" onclick="exportData()">📤 書き出し</button>
+                </div>
+                <div class="col-6">
+                    <button class="btn btn-light btn-sm w-100 py-2" onclick="document.getElementById('importFile').click()">📥 復元</button>
+                    <input type="file" id="importFile" class="hidden-input" accept=".json" onchange="importData(event)">
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-sm btn-link text-danger w-100 mt-4 text-decoration-none" onclick="clearAllData()">全データを削除する</button>
+    </div>
 </div>
 
-<div id="stats"></div>
+<button class="fab" onclick="openRecordModal()">＋</button>
 
-<h6>履歴</h6>
-<div id="history"></div>
-
-</div>
-
-<button class="fab" onclick="openModal()">＋</button>
-
-<!-- モーダル -->
-<div class="modal fade" id="modal">
-<div class="modal-dialog modal-dialog-centered">
-<div class="modal-content bg-dark text-white">
-
-<div class="modal-header">
-<h5 id="modalTitle">記録</h5>
-<button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-</div>
-
-<div class="modal-body">
-
-<input type="hidden" id="editId">
-
-<label>日付</label>
-<input type="date" id="date" class="form-control mb-3">
-
-<label>打数</label>
-<input type="number" id="ab" class="form-control mb-2">
-
-<label>安打</label>
-<input type="number" id="h" class="form-control mb-2">
-
-<label>四球</label>
-<input type="number" id="bb" class="form-control mb-2">
-
-<label>本塁打</label>
-<input type="number" id="hr" class="form-control mb-2">
-
-<button class="btn btn-danger w-100 mt-3" onclick="deleteRecord()" id="deleteBtn" style="display:none;">削除</button>
-
-</div>
-
-<div class="modal-footer">
-<button class="btn btn-primary w-100" onclick="saveRecord()">保存</button>
-</div>
-
-</div>
-</div>
-</div>
-
+<!-- Navigation -->
 <div class="bottom-nav">
-<button onclick="switchTab()" class="active">成績</button>
+    <button id="btn-summary" onclick="switchTab('summary')" class="active">
+        <span>📊</span><span>成績</span>
+    </button>
+    <button id="btn-settings" onclick="switchTab('settings')">
+        <span>⚙️</span><span>設定</span>
+    </button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Modal: Player -->
+<div class="modal fade" id="playerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">選手の追加</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="label-text">名前</div>
+                <input type="text" id="newPlayerName" class="form-control" placeholder="例：山田 太郎">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary w-100" onclick="handleNewPlayer()">保存する</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Record (Add/Edit) -->
+<div class="modal fade" id="recordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recordModalTitle">今日の成績</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-record-id">
+                <div class="mb-4">
+                    <label class="label-text">日付</label>
+                    <input type="date" id="input-date" class="form-control">
+                </div>
+                <div class="row g-4">
+                    <div class="col-6">
+                        <label class="label-text">打数</label>
+                        <input type="number" id="input-ab" class="form-control" value="0" min="0">
+                    </div>
+                    <div class="col-6">
+                        <label class="label-text">安打</label>
+                        <input type="number" id="input-h" class="form-control" value="0" min="0">
+                    </div>
+                    <div class="col-6">
+                        <label class="label-text">四死球</label>
+                        <input type="number" id="input-bb" class="form-control" value="0" min="0">
+                    </div>
+                    <div class="col-6">
+                        <label class="label-text">本塁打</label>
+                        <input type="number" id="input-hr" class="form-control" value="0" min="0">
+                    </div>
+                </div>
+                <div id="edit-delete-container" class="mt-4 text-center" style="display:none;">
+                    <hr class="border-secondary">
+                    <button class="btn btn-sm btn-link text-danger text-decoration-none" onclick="deleteRecord()">この記録を削除する</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary w-100" onclick="handleSaveRecord()">記録を保存する</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
+    let state = { players: [], records: [] };
+    let chartInstance = null;
+    const recordModal = new bootstrap.Modal(document.getElementById('recordModal'));
 
-let state={players:[],records:[]}
-let chart
-const modal=new bootstrap.Modal(document.getElementById("modal"))
+    const save = () => localStorage.setItem("baseball_pro_data_v3", JSON.stringify(state));
+    const load = () => {
+        const data = localStorage.getItem("baseball_pro_data_v3");
+        if (data) state = JSON.parse(data);
+    };
 
-function save(){localStorage.setItem("data",JSON.stringify(state))}
-function load(){const d=localStorage.getItem("data");if(d)state=JSON.parse(d)}
+    // --- Backup ---
+    function exportData() {
+        const dataStr = JSON.stringify(state, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const name = 'baseball_backup_' + new Date().toISOString().split('T')[0] + '.json';
+        const link = document.createElement('a');
+        link.setAttribute('href', dataUri); link.setAttribute('download', name); link.click();
+    }
 
-function init(){
-if(state.players.length===0){
-state.players.push({id:"1",name:"自分"})
-}
-updatePlayers()
-renderDisplay()
-}
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.players && confirm("データを上書きしますか？")) {
+                    state = data; save(); location.reload();
+                }
+            } catch (err) { alert("無効なファイルです"); }
+        };
+        reader.readAsText(file);
+    }
 
-function updatePlayers(){
-const sel=document.getElementById("playerSelect")
-sel.innerHTML=state.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join("")
-}
+    // --- Record Logic ---
+    function openRecordModal(recordId = null) {
+        const title = document.getElementById('recordModalTitle');
+        const idInput = document.getElementById('edit-record-id');
+        const deleteContainer = document.getElementById('edit-delete-container');
+        
+        if (recordId) {
+            const r = state.records.find(rec => rec.id === recordId);
+            title.innerText = "記録の編集";
+            idInput.value = r.id;
+            document.getElementById('input-date').value = r.date;
+            document.getElementById('input-ab').value = r.ab;
+            document.getElementById('input-h').value = r.h;
+            document.getElementById('input-bb').value = r.bb;
+            document.getElementById('input-hr').value = r.hr;
+            deleteContainer.style.display = 'block';
+        } else {
+            title.innerText = "成績の入力";
+            idInput.value = "";
+            document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+            ['input-ab', 'input-h', 'input-bb', 'input-hr'].forEach(id => document.getElementById(id).value = 0);
+            deleteContainer.style.display = 'none';
+        }
+        recordModal.show();
+    }
 
-function openModal(id=null){
-document.getElementById("editId").value=id||""
-document.getElementById("deleteBtn").style.display=id?"block":"none"
+    function handleSaveRecord() {
+        const playerId = document.getElementById('playerSelect').value;
+        if (!playerId) return alert("選手を登録してください");
 
-if(id){
-const r=state.records.find(x=>x.id===id)
-document.getElementById("date").value=r.date
-document.getElementById("ab").value=r.ab
-document.getElementById("h").value=r.h
-document.getElementById("bb").value=r.bb
-document.getElementById("hr").value=r.hr
-}else{
-document.getElementById("date").value=new Date().toISOString().split("T")[0]
-["ab","h","bb","hr"].forEach(id=>document.getElementById(id).value=0)
-}
+        const id = document.getElementById('edit-record-id').value;
+        const data = {
+            id: id || Date.now().toString(),
+            playerId,
+            date: document.getElementById('input-date').value,
+            ab: parseInt(document.getElementById('input-ab').value) || 0,
+            h: parseInt(document.getElementById('input-h').value) || 0,
+            bb: parseInt(document.getElementById('input-bb').value) || 0,
+            hr: parseInt(document.getElementById('input-hr').value) || 0
+        };
 
-setTimeout(()=>document.getElementById("date").focus(),200)
+        if (id) {
+            const index = state.records.findIndex(r => r.id === id);
+            state.records[index] = data;
+        } else {
+            state.records.push(data);
+        }
+        
+        save();
+        recordModal.hide();
+        renderDisplay();
+    }
 
-modal.show()
-}
+    function deleteRecord() {
+        const id = document.getElementById('edit-record-id').value;
+        if (confirm("この記録を削除しますか？")) {
+            state.records = state.records.filter(r => r.id !== id);
+            save();
+            recordModal.hide();
+            renderDisplay();
+        }
+    }
 
-function saveRecord(){
+    function handleNewPlayer() {
+        const input = document.getElementById('newPlayerName');
+        if (!input.value.trim()) return;
+        state.players.push({ id: Date.now().toString(), name: input.value.trim() });
+        save();
+        updatePlayerUI();
+        input.value = '';
+        bootstrap.Modal.getInstance(document.getElementById('playerModal')).hide();
+        renderDisplay();
+    }
 
-const date=document.getElementById("date").value
-if(!date)return alert("日付入力して")
+    function clearAllData() {
+        if (confirm("全データを削除します。よろしいですか？")) {
+            state = { players: [], records: [] };
+            save(); location.reload();
+        }
+    }
 
-const data={
-id:document.getElementById("editId").value||Date.now().toString(),
-playerId:document.getElementById("playerSelect").value,
-date:date,
-ab:+document.getElementById("ab").value||0,
-h:+document.getElementById("h").value||0,
-bb:+document.getElementById("bb").value||0,
-hr:+document.getElementById("hr").value||0
-}
+    // --- UI Rendering ---
+    function updatePlayerUI() {
+        const select = document.getElementById('playerSelect');
+        const list = document.getElementById('playerList');
+        const current = select.value;
+        
+        select.innerHTML = state.players.map(p => `<option value="${p.id}" ${p.id === current ? 'selected' : ''}>${p.name}</option>`).join('');
+        list.innerHTML = state.players.map(p => `
+            <div class="history-item">
+                <span class="fw-bold">${p.name}</span>
+                <span class="badge bg-primary">登録済</span>
+            </div>
+        `).join('');
+    }
 
-const idx=state.records.findIndex(r=>r.id===data.id)
-if(idx>=0)state.records[idx]=data
-else state.records.push(data)
+    function renderDisplay() {
+        const playerId = document.getElementById('playerSelect').value;
+        // 日付順にソートして計算
+        const pRecords = state.records
+            .filter(r => r.playerId === playerId)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-save()
-modal.hide()
-renderDisplay()
-}
+        let t = { ab: 0, h: 0, bb: 0, hr: 0 };
+        const timeline = [];
 
-function deleteRecord(){
-const id=document.getElementById("editId").value
-if(confirm("削除する？")){
-state.records=state.records.filter(r=>r.id!==id)
-save()
-modal.hide()
-renderDisplay()
-}
-}
+        pRecords.forEach(r => {
+            t.ab += r.ab; t.h += r.h; t.bb += r.bb; t.hr += r.hr;
+            const avg = t.ab ? (t.h / t.ab) : 0;
+            const slg = t.ab ? ((t.h + (t.hr * 3)) / t.ab) : 0;
+            timeline.push({ date: r.date, avg, ops: avg + slg });
+        });
 
-function renderDisplay(){
+        renderChart(timeline);
+        renderStats(t);
+        renderHistory(pRecords);
+    }
 
-const pid=document.getElementById("playerSelect").value
+    function renderHistory(records) {
+        const container = document.getElementById('history-list');
+        // 表示は新しい順
+        const sorted = [...records].reverse();
+        container.innerHTML = sorted.map(r => `
+            <div class="history-item">
+                <div>
+                    <div class="small text-muted">${r.date}</div>
+                    <div>${r.ab}打数 ${r.h}安打 ${r.hr > 0 ? '<strong>' + r.hr + '本塁打</strong>' : ''}</div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" onclick="openRecordModal('${r.id}')">編集</button>
+            </div>
+        `).join('') || '<p class="text-center text-muted small py-3">履歴がありません</p>';
+    }
 
-const list=state.records
-.filter(r=>r.playerId===pid)
-.sort((a,b)=>new Date(a.date)-new Date(b.date))
+    function renderChart(data) {
+        const ctx = document.getElementById('chart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        if (!data.length) return;
 
-let t={ab:0,h:0,bb:0,hr:0}
-let data=[]
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.date),
+                datasets: [
+                    { label: '打率', data: data.map(d => d.avg), borderColor: '#00ffcc', tension: 0.4, fill: false, borderWidth: 3 },
+                    { label: 'OPS', data: data.map(d => d.ops), borderColor: '#3b82f6', tension: 0.4, fill: false, borderWidth: 3 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#fff', font: { weight: 'bold' } } } },
+                scales: {
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
 
-list.forEach(r=>{
-t.ab+=r.ab
-t.h+=r.h
-t.bb+=r.bb
-t.hr+=r.hr
+    function renderStats(t) {
+        const avg = t.ab ? (t.h / t.ab) : 0;
+        const obp = (t.ab + t.bb) ? (t.h + t.bb) / (t.ab + t.bb) : 0;
+        const slg = t.ab ? ((t.h + t.hr * 3) / t.ab) : 0;
+        const ops = obp + slg;
 
-const avg=t.ab? t.h/t.ab:0
-const obp=(t.ab+t.bb)?(t.h+t.bb)/(t.ab+t.bb):0
-const slg=t.ab?(t.h+t.hr*3)/t.ab:0
-const ops=obp+slg
+        document.getElementById('stats-container').innerHTML = `
+            <div class="row g-3">
+                <div class="col-6">
+                    <div class="card mb-0">
+                        <div class="label-text">打率</div>
+                        <div class="stat-value ${avg >= 0.3 ? 'glow' : ''}">${avg.toFixed(3)}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card mb-0">
+                        <div class="label-text">OPS</div>
+                        <div class="stat-value ${ops >= 0.8 ? 'glow' : ''}">${ops.toFixed(3)}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card mb-0">
+                        <div class="label-text">通算安打</div>
+                        <div class="stat-value">${t.h}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card mb-0">
+                        <div class="label-text">通算本塁打</div>
+                        <div class="stat-value">${t.hr}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
-data.push({date:r.date,avg,ops})
-})
+    window.switchTab = (id) => {
+        document.getElementById('view-summary').style.display = id === 'summary' ? 'block' : 'none';
+        document.getElementById('view-settings').style.display = id === 'settings' ? 'block' : 'none';
+        document.getElementById('btn-summary').classList.toggle('active', id === 'summary');
+        document.getElementById('btn-settings').classList.toggle('active', id === 'settings');
+    };
 
-drawChart(data)
-drawStats(t)
-drawHistory(list)
-}
-
-function drawChart(data){
-
-const ctx=document.getElementById("chart")
-
-if(chart)chart.destroy()
-if(!data.length)return
-
-chart=new Chart(ctx,{
-type:"line",
-data:{
-labels:data.map(d=>d.date),
-datasets:[
-{label:"打率",data:data.map(d=>d.avg),borderColor:"#00ffcc"},
-{label:"OPS",data:data.map(d=>d.ops),borderColor:"#3b82f6"}
-]
-}
-})
-}
-
-function drawStats(t){
-
-const avg=t.ab? t.h/t.ab:0
-const obp=(t.ab+t.bb)?(t.h+t.bb)/(t.ab+t.bb):0
-const slg=t.ab?(t.h+t.hr*3)/t.ab:0
-const ops=obp+slg
-
-document.getElementById("stats").innerHTML=`
-<div class="card">
-<div class="${avg>=0.3?'glow':''}">打率 ${avg.toFixed(3)}</div>
-<div class="${ops>=0.8?'glow':''}">OPS ${ops.toFixed(3)}</div>
-</div>
-`
-}
-
-function drawHistory(list){
-
-const el=document.getElementById("history")
-
-el.innerHTML=[...list].reverse().map(r=>`
-<div class="history-item">
-<div>${r.date} ${r.h}/${r.ab}</div>
-<button onclick="openModal('${r.id}')">編集</button>
-</div>
-`).join("")
-}
-
-load()
-init()
-
+    window.onload = () => { load(); updatePlayerUI(); renderDisplay(); };
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
